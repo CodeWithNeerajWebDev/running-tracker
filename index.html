@@ -1,101 +1,53 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta name="google-site-verification" content="7H9Tu_R5pOmCgyaXc2LtVp4YqzynkBsIeKurtu05g0w" />
-        <title>BMI Calculator</title>
-        <style>
-            body {
-    font-family: Arial,sans-serif;
-    text-align: center;
-    margin-top: 50px;
-    background-color: #f2f2f2;
-}
-.calcutor {
-    background-color: white;
-    width: 350px;
-    margin: auto;
-    padding: 30;
-    border: 1px solid #ccc;
-    border-radius: 15px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-}
-.calculator h1 {
-    margin-bottom: 20px;
-}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Running Tracker</title>
+    <link rel="stylesheet" href="style.css">
+</head>
 
-.calculator input {
-    padding: 10px;
-    margin: 8px;
-    border: 1px solid #ccc;
-    border-radius: 5px;
-}
+<body>
 
-.calculator button {
-    padding: 12px;
-    margin-top: 15px;
-    background-color: #007bff;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-}
-.creator {
-    margin-top: 25px;
-    font-size: 13px;
-    color: #777;
-}
-}
-    </style>
-    </head>
+    <div class="container">
 
-    <body>
-        <div class="calculator">
-        <h1>BMI Calculator</h1>
+        <h1>🏃 Running Tracker</h1>
 
-        <p>Welcome to my BMI Calculator</p>
-        <label>Weight (kg):</label>
-        <input type="number" id="weight">
+        <div class="stats">
 
-        <br><br>
+            <div class="box">
+                <h3>Distance</h3>
+                <p id="distance">0.00 km</p>
+            </div>
 
-        <label>Height (cm):</label>
-        <input type="number" id="height">
+            <div class="box">
+                <h3>Time</h3>
+                <p id="time">00:00:00</p>
+            </div>
 
-        <br><br>
+            <div class="box">
+                <h3>Speed</h3>
+                <p id="speed">0.00 km/h</p>
+            </div>
 
-        <button
-    onclick="calculateBMI()">Calculate BMI</button>
-    <p id="result"></p>
-    <p class="creator">created by Neeraj Singh Rawat</p>
-    <script>
-    function calculateBMI() {
-    let weight = document.getElementById("weight").value;
-    let height = document.getElementById("height").value;
+            <div class="box">
+                <h3>Pace</h3>
+                <p id="pace">0:00 min/km</p>
+            </div>
 
-    height = height / 100;
+        </div>
 
-    let bmi = weight / (height * height);
+        <div class="buttons">
+            <button id="startBtn">START</button>
+            <button id="pauseBtn">PAUSE</button>
+            <button id="stopBtn">STOP</button>
+        </div>
 
-    let result = document.getElementById("result");
+        <p id="status">Press START to begin</p>
 
-    if (bmi < 18.5) {
-        result.innerText = "Your BMI is: " + bmi.toFixed(2) +
-            "\nCategory: Underweight";
-    }
-    else if (bmi < 25) {
-        result.innerText = "Your BMI is: " + bmi.toFixed(2) +
-            "\nCategory: Normal";
-    }
-    else if (bmi < 30) {
-        result.innerText = "Your BMI is: " + bmi.toFixed(2) +
-            "\nCategory: Overweight";
-    }
-    else {
-        result.innerText = "Your BMI is: " + bmi.toFixed(2) +
-            "\nCategory: High BMI — Please consider talking to a healthcare professional.";
-    }
-}
-    </script>
     </div>
-    </body>
+
+    <script src="script.js"></script>
+
+</body>
 </html>
