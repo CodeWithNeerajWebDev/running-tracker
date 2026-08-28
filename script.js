@@ -1,3 +1,4 @@
+alert("javascript is working");
 let watchId = null;
 let startTime = null;
 let timerInterval = null;
