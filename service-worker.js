@@ -1,4 +1,4 @@
-const CACHE_NAME = "running-tracker-v1";
+const CACHE_NAME = "running-tracker-v2";
 
 const FILES_TO_CACHE = [
     "./",
