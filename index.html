@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Running Tracker</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
 </head>
 
 <body>
@@ -46,11 +47,17 @@
         <p id="status">Press START to begin</p>
 
     </div>
-    <footer>
-        Created by Neeraj Singh Rawat 
-    </footer>
 
     <script src="script.js"></script>
+    <script>
+    if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+            navigator.serviceWorker.register("./service-worker.js")
+                .then(() => console.log("Service Worker registered"))
+                .catch(error => console.log("Service Worker error:", error));
+        });
+    }
+</script>
 
 </body>
 </html>

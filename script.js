@@ -1,8 +1,9 @@
-alert("JavaScript is working!");
-
 let watchId = null;
-let startTime = null;
 let timerInterval = null;
+
+let startTime = null;
+let pausedTime = 0;
+let pauseStarted = null;
 
 let totalDistance = 0;
 let lastPosition = null;
@@ -17,148 +18,351 @@ document.getElementById("startBtn").addEventListener("click", startRun);
 document.getElementById("pauseBtn").addEventListener("click", pauseRun);
 document.getElementById("stopBtn").addEventListener("click", stopRun);
 
-function startRun() {
-    if (watchId !== null) return;
 
-    if (!startTime) {
-        startTime = Date.now();
+// =========================
+// START / RESUME
+// =========================
+
+function startRun() {
+
+    if (watchId !== null) {
+        return;
+    }
+
+    // First start
+    if (startTime === null) {
+        startTime = performance.now();
+        pausedTime = 0;
         totalDistance = 0;
         lastPosition = null;
     }
 
-    statusDisplay.textContent = "Running...";
-
-    timerInterval = setInterval(updateTime, 1000);
-
-    if ("geolocation" in navigator) {
-        watchId = navigator.geolocation.watchPosition(
-            updatePosition,
-            locationError,
-            {
-                enableHighAccuracy: true,
-                maximumAge: 0
-            }
-        );
-    } else {
-        statusDisplay.textContent = "GPS is not supported.";
+    // Resume after pause
+    if (pauseStarted !== null) {
+        pausedTime += performance.now() - pauseStarted;
+        pauseStarted = null;
     }
+
+    statusDisplay.textContent = "Getting GPS location...";
+
+    clearInterval(timerInterval);
+    timerInterval = setInterval(updateDisplay, 250);
+
+    if (!("geolocation" in navigator)) {
+        statusDisplay.textContent = "GPS is not supported.";
+        return;
+    }
+
+    watchId = navigator.geolocation.watchPosition(
+        updatePosition,
+        locationError,
+        {
+            enableHighAccuracy: true,
+            maximumAge: 1000,
+            timeout: 15000
+        }
+    );
 }
+
+
+// =========================
+// GPS POSITION
+// =========================
 
 function updatePosition(position) {
-    const currentPosition = {
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude
-    };
 
-    if (lastPosition !== null) {
-        const distance = calculateDistance(
-            lastPosition.latitude,
-            lastPosition.longitude,
-            currentPosition.latitude,
-            currentPosition.longitude
-        );
+    const accuracy = position.coords.accuracy;
 
-        totalDistance += distance;
-
-        distanceDisplay.textContent =
-            totalDistance.toFixed(2) + " km";
-
-        updateSpeedAndPace();
+    // Ignore very inaccurate GPS readings
+    if (!Number.isFinite(accuracy) || accuracy > 30) {
+        statusDisplay.textContent =
+            "GPS accuracy: " + Math.round(accuracy || 0) + " m";
+        return;
     }
 
+    const currentPosition = {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        accuracy: accuracy,
+        timestamp: position.timestamp
+    };
+
+    // First valid GPS point
+    if (lastPosition === null) {
+        lastPosition = currentPosition;
+
+        statusDisplay.textContent =
+            "GPS connected • Running...";
+
+        return;
+    }
+
+    const distance = calculateDistance(
+        lastPosition.latitude,
+        lastPosition.longitude,
+        currentPosition.latitude,
+        currentPosition.longitude
+    );
+
+    const timeDifference =
+        (currentPosition.timestamp - lastPosition.timestamp) / 1000;
+
+
+    // Ignore invalid GPS jumps
+    if (timeDifference <= 0) {
+        return;
+    }
+
+    const gpsSpeed = distance / timeDifference; // km/s
+
+    // Convert to km/h
+    const speedKmH = gpsSpeed * 3600;
+
+
+    // Ignore unrealistic jumps
+    // 35 km/h is far above normal running speed
+    if (speedKmH > 35) {
+        statusDisplay.textContent =
+            "GPS jump ignored";
+        return;
+    }
+
+
+    // Ignore tiny GPS movement
+    // This reduces GPS noise
+    if (distance < 0.003) {
+        return;
+    }
+
+
+    totalDistance += distance;
+
     lastPosition = currentPosition;
+
+    updateStats();
 }
 
-function calculateDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371;
 
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
+// =========================
+// DISTANCE CALCULATION
+// =========================
+
+function calculateDistance(lat1, lon1, lat2, lon2) {
+
+    const R = 6371; // Earth radius in km
+
+    const dLat = toRadians(lat2 - lat1);
+    const dLon = toRadians(lon2 - lon1);
 
     const a =
         Math.sin(dLat / 2) ** 2 +
-        Math.cos(lat1 * Math.PI / 180) *
-        Math.cos(lat2 * Math.PI / 180) *
+        Math.cos(toRadians(lat1)) *
+        Math.cos(toRadians(lat2)) *
         Math.sin(dLon / 2) ** 2;
 
-    const c = 2 * Math.atan2(
-        Math.sqrt(a),
-        Math.sqrt(1 - a)
-    );
+    const c =
+        2 * Math.atan2(
+            Math.sqrt(a),
+            Math.sqrt(1 - a)
+        );
 
     return R * c;
 }
 
-function updateTime() {
-    if (!startTime) return;
+function toRadians(value) {
+    return value * Math.PI / 180;
+}
 
-    const elapsed = Date.now() - startTime;
-    const totalSeconds = Math.floor(elapsed / 1000);
 
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
+// =========================
+// ACTIVE TIME
+// =========================
+
+function getActiveTime() {
+
+    if (startTime === null) {
+        return 0;
+    }
+
+    let now = performance.now();
+
+    let totalElapsed = now - startTime;
+
+    // Remove paused time
+    if (pauseStarted !== null) {
+        totalElapsed -= pausedTime;
+        totalElapsed -= now - pauseStarted;
+    } else {
+        totalElapsed -= pausedTime;
+    }
+
+    return Math.max(0, totalElapsed);
+}
+
+
+// =========================
+// DISPLAY TIME
+// =========================
+
+function updateDisplay() {
+
+    const activeMilliseconds = getActiveTime();
+
+    const totalSeconds =
+        Math.floor(activeMilliseconds / 1000);
+
+    const hours =
+        Math.floor(totalSeconds / 3600);
+
+    const minutes =
+        Math.floor((totalSeconds % 3600) / 60);
+
+    const seconds =
+        totalSeconds % 60;
 
     timeDisplay.textContent =
         String(hours).padStart(2, "0") + ":" +
         String(minutes).padStart(2, "0") + ":" +
         String(seconds).padStart(2, "0");
 
-    updateSpeedAndPace();
+    updateStats();
 }
 
-function updateSpeedAndPace() {
-    if (!startTime || totalDistance <= 0) return;
 
-    const elapsedHours =
-        (Date.now() - startTime) / 3600000;
+// =========================
+// SPEED + PACE
+// =========================
 
-    const speed = totalDistance / elapsedHours;
+function updateStats() {
 
-    speedDisplay.textContent =
-        speed.toFixed(2) + " km/h";
+    const activeMilliseconds = getActiveTime();
 
-    const elapsedMinutes =
-        (Date.now() - startTime) / 60000;
+    const activeHours =
+        activeMilliseconds / 3600000;
 
-    const pace = elapsedMinutes / totalDistance;
+    const activeMinutes =
+        activeMilliseconds / 60000;
 
-    const paceMinutes = Math.floor(pace);
-    const paceSeconds =
-        Math.floor((pace - paceMinutes) * 60);
 
-    paceDisplay.textContent =
-        paceMinutes + ":" +
-        String(paceSeconds).padStart(2, "0") +
-        " min/km";
+    // Distance
+    distanceDisplay.textContent =
+        totalDistance.toFixed(2) + " km";
+
+
+    // Average speed
+    if (totalDistance > 0 && activeHours > 0) {
+
+        const averageSpeed =
+            totalDistance / activeHours;
+
+        speedDisplay.textContent =
+            averageSpeed.toFixed(2) + " km/h";
+    }
+
+
+    // Average pace
+    if (totalDistance > 0 && activeMinutes > 0) {
+
+        const pace =
+            activeMinutes / totalDistance;
+
+        const paceMinutes =
+            Math.floor(pace);
+
+        const paceSeconds =
+            Math.round((pace - paceMinutes) * 60);
+
+        if (paceSeconds === 60) {
+
+            paceDisplay.textContent =
+                (paceMinutes + 1) + ":00 min/km";
+
+        } else {
+
+            paceDisplay.textContent =
+                paceMinutes + ":" +
+                String(paceSeconds).padStart(2, "0") +
+                " min/km";
+        }
+    }
 }
+
+
+// =========================
+// PAUSE
+// =========================
 
 function pauseRun() {
-    if (watchId !== null) {
-        navigator.geolocation.clearWatch(watchId);
-        watchId = null;
+
+    if (watchId === null || startTime === null) {
+        return;
     }
+
+    pauseStarted = performance.now();
+
+    navigator.geolocation.clearWatch(watchId);
+
+    watchId = null;
 
     clearInterval(timerInterval);
 
     statusDisplay.textContent = "Paused";
 }
 
+
+// =========================
+// STOP
+// =========================
+
 function stopRun() {
+
     if (watchId !== null) {
         navigator.geolocation.clearWatch(watchId);
-        watchId = null;
     }
+
+    watchId = null;
 
     clearInterval(timerInterval);
 
     statusDisplay.textContent = "Run finished";
 
     startTime = null;
+    pausedTime = 0;
+    pauseStarted = null;
+    totalDistance = 0;
     lastPosition = null;
+
+    distanceDisplay.textContent = "0.00 km";
+    timeDisplay.textContent = "00:00:00";
+    speedDisplay.textContent = "0.00 km/h";
+    paceDisplay.textContent = "0:00 min/km";
 }
 
+
+// =========================
+// GPS ERROR
+// =========================
+
 function locationError(error) {
-    statusDisplay.textContent =
-        "Please allow location/GPS permission.";
+
+    if (error.code === 1) {
+
+        statusDisplay.textContent =
+            "Location permission denied.";
+
+    } else if (error.code === 2) {
+
+        statusDisplay.textContent =
+            "GPS location unavailable.";
+
+    } else if (error.code === 3) {
+
+        statusDisplay.textContent =
+            "GPS timeout. Searching again...";
+
+    } else {
+
+        statusDisplay.textContent =
+            "GPS error.";
+    }
 }
